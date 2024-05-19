@@ -1,0 +1,203 @@
+version: "3.3"
+services:
+   schema-registry:
+      image: confluentinc/cp-schema-registry:5.4.0
+      container_name: schema-registry
+      ports:
+        - 8082:8082
+      environment:
+        - SCHEMA_REGISTRY_HOST_NAME=kafka-schema-registry_1
+        - SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS=SASL_PLAINTEXT://stg-ageapdsk201.stg.hnd2.bdd.local:9092,
+        - SCHEMA_REGISTRY_KAFKASTORE_SECURITY_PROTOCOL=SASL_PLAINTEXT,
+        - SCHEMA_REGISTRY_KAFKASTORE_SASL_MECHANISM=GSSAPI,
+        - SCHEMA_REGISTRY_KAFKASTORE_SASL_KERBEROS_SERVICE_NAME=kafka,
+        - SCHEMA_REGISTRY_KAFKASTORE_TOPIC=stg-room-mysql-cdc-config,
+        - SCHEMA_REGISTRY_LISTENERS=http://0.0.0.0:8082,
+        - SCHEMA_REGISTRY_MASTER_ELIGIBILITY=true,
+        - SCHEMA_REGISTRY_HEAP_OPTS=-Xms512M -Xmx512M,
+        - SCHEMA_REGISTRY_KAFKASTORE_PRODUCER_GROUP_ID=room_consumer_cdc,
+        - SCHEMA_REGISTRY_KAFKASTORE_PRODUCER_TOPIC=stg-room-mysql-cdc-config,
+        - SCHEMA_REGISTRY_KAFKASTORE_CONSUMER_GROUP_ID=room_consumer_cdc,
+        - SCHEMA_REGISTRY_KAFKASTORE_CONSUMER_TOPIC=stg-room-mysql-cdc-config,
+        - SCHEMA_REGISTRY_CONSUMER_SASL_MECHANISM=GSSAPI,
+        - SCHEMA_REGISTRY_CONSUMER_SECURITY_PROTOCOL=SASL_PLAINTEXT,
+        - SCHEMA_REGISTRY_PRODUCER_SASL_MECHANISM=GSSAPI,
+        - SCHEMA_REGISTRY_PRODUCER_SECURITY_PROTOCOL=SASL_PLAINTEXT,
+        - SCHEMA_REGISTRY_GROUP_ID=room_consumer_cdc,
+        - SCHEMA_REGISTRY_DEBUG=true,
+        - SCHEMA_REGISTRY_ACCESS_CONTROL_ALLOW_METHODS=GET,POST,PUT,OPTIONS,
+        - SCHEMA_REGISTRY_ACCESS_CONTROL_ALLOW_ORIGIN=*,
+        - SCHEMA_REGISTRY_ZK_SESSION_TIMEOUT_MS=60000,
+        - SCHEMA_REGISTRY_KAFKASTORE_TIMEOUT_MS=50000,
+        - SCHEMA_REGISTRY_KAFKASTORE_INIT_TIMEOUT_MS=70000,
+        - SCHEMA_REGISTRY_KAFKASTORE_ALLOW_AUTO_CREATE_TOPICS=false,
+        - GROUP_ID=room_consumer_cdc,
+        - BOOTSTRAP_SERVERS=ASL_PLAINTEXT://stg-ageapdsk201.stg.hnd2.bdd.local:9092, ASL_PLAINTEXT://stg-ageapdsk202.stg.hnd2.bdd.local:9092, ASL_PLAINTEXT://stg-ageapdsk203.stg.hnd2.bdd.local:9092,
+        - SASL_SECURITY_PROTOCOL=SASL_PLAINTEXT, 
+        - SASL_MECHANISM=GSSAPI ,
+        - SASL_KERBEROS_SERVICE_NAME=kafka,
+        - ZOOKEEPER_CONNECTION_TIMEOUT_MS=40000,
+        - ZOOKEEPER_SESSION_TIMEOUT_MS=18000,
+        - ALLOW_AUTO_CREATE_TOPICS=false,
+        - KAFKA_OPTS=-Djava.security.auth.login.config=/kafka_client_jaas.conf -Djava.security.krb5.conf=/krb5.conf,
+        - SCHEMA_REGISTRY_OPTS=-Djava.security.auth.login.config=/kafka_client_jaas.conf -Djava.security.krb5.conf=/krb5.conf,
+        - SECURITY_PLUGINS_OPTS=-Djava.security.auth.login.config=/kafka_client_jaas.conf -Djava.security.krb5.conf=/krb5.conf,
+        - JAVA_OPTS=-Djava.security.auth.login.config=/kafka_client_jaas.conf -Djava.security.krb5.conf=/krb5.conf,
+        - SCHEMA_REGISTRY_ZK_REQUEST_TIMEOUT=30000,
+        - SCHEMA_REGISTRY_KAFKASTORE_ZOOKEEPER_REQUEST_TIMEOUT=30000
+   #<Create debezium kafka connector to stream data from Source DB into kafka cluster> 
+   connect:
+        build:
+          context: .
+          dockerfile: Dockerfile
+        image: debezium/connect:latest
+        hostname: debezium-connector
+        ports:
+          - '8084:8084'
+        environment:
+          - GROUP_ID=room_consumer_cdc,
+          - BOOTSTRAP_SERVERS=SASL_PLAINTEXT://stg-ageapdsk201.stg.hnd2.bdd.local:9092SASL_PLAINTEXT:// stg-ageapdsk202.stg.hnd2.bdd.local:9092 SASL_PLAINTEXT://stg-ageapdsk203.stg.hnd2.bdd.local:9092
+          - OFFSET_STORAGE_TOPIC=stg-room-mysql-cdc-offset 
+          - CONFIG_STORAGE_TOPIC=stg-room-mysql-cdc-config
+          - SECURITY_PROTOCOL=SASL_PLAINTEXT 
+          - SASL_MECHANISM=GSSAPI
+          - SASL_KERBEROS_SERVICE_NAME=kafka
+          - PLUGIN_PATH=/kafka/connect
+          - CONNECT_GROUP_ID=room_consumer_cdc
+          - CONNECT_BOOTSTRAP_SERVERS=SASL_PLAINTEXT://stg-ageapdsk201.stg.hnd2.bdd.local:9092SASL_PLAINTEXT:// stg-ageapdsk202.stg.hnd2.bdd.local:9092 SASL_PLAINTEXT://stg-ageapdsk203.stg.hnd2.bdd.local:9092
+          - CONNECT_OFFSET_STORAGE_TOPIC=stg-room-mysql-cdc-offset 
+          - CONNECT_CONFIG_STORAGE_TOPIC=stg-room-mysql-cdc-config
+          - CONNECT_SECURITY_PROTOCOL=SASL_PLAINTEXT 
+          - CONNECT_SASL_MECHANISM=GSSAPI
+          - CONNECT_SASL_KERBEROS_SERVICE_NAME=kafka
+          - CONNECT_PLUGIN_PATH=/kafka/connect
+          - CONNECT_HEARTBEAT_INTERVAL_MS=20000
+          - CONNECT_SESSION_TIMEOUT_MS=50000
+          - CONNECT_AUTO_OFFSET_RESET=latest
+          - CONNECT_FETCH_MAX_WAIT_MS=60000
+          - CONNECT_REQUEST_TIMEOUT_MS=70000
+          - CONNECT_ENABLE_AUTO_COMMIT=false
+          - CONNECT_FETCH_MIN_BYTES=9999999
+          - KAFKA_HEAP_OPTS=-Xms512M -Xmx512M
+          - CONNECT_CONSUMER_SASL_MECHANISM=GSSAPI
+          - CONNECT_CONSUMER_SECURITY_PROTOCOL=SASL_PLAINTEXT
+          - CONNECT_PRODUCER_SASL_MECHANISM=GSSAPI
+          - CONNECT_PRODUCER_SECURITY_PROTOCOL=SASL_PLAINTEXT
+          - KAFKA_OPTS=-Djava.security.auth.login.config=/kafka_client_jaas.conf -Djava.security.krb5.conf=/krb5.conf
+          - KAFKA_CLIENT_KERBEROS_PARAMS=-Djava.security.auth.login.config=/kafka_client_jaas.conf -Djava.security.krb5.conf=/krb5.conf -Dsun.security.krb5.debug=true -Dsun.security.spnego.debug=true
+          - JAVA_OPTS=-Djava.security.auth.login.config=/kafka_client_jaas.conf -Djava.security.krb5.conf=/krb5.conf -Dsun.security.krb5.debug=true -Dsun.security.spnego.debug=true
+        expose:
+          - '8084'
+        # volumes:
+        #   - ./kafka-connect-jdbc:/kafka/connect/kafka-connect-jdbc
+        #   - ./debezium-connector-mysql:/kafka/connect/debezium-connector-mysql
+        #   - ./auth/kafka_client_jaas.conf:/kafka_client_jaas.conf
+        #   - ./auth/krb.conf:/krb.conf
+         
+   #CALL endpoint to create mysql connector with debezium kafka connect for starting snapshot from source DB
+   #Enable binlog is a must
+  #  mysql-connector:
+  #      # container_name: mysql-container
+  #      build:
+  #        context: .
+  #        dockerfile: Dockerfile
+  #      restart: always
+  #      command: 
+  #         - curl 
+  #         - -i 
+  #         - -X 
+  #         - POST 
+  #         - -H 
+  #         - "Accept:application/json"
+  #         - -H
+  #         - "Content-Type:application/json"
+  #         - -d 
+  #         - '{
+  #               "name": "mysql-connector",
+  #               "config":
+  #               {
+  #                   "connector.class": "io.debezium.connector.mysql.MySqlConnector",
+  #                   "tasks.max": "1",
+  #                   "database.hostname": "stg-dm-room201z.stg.jp.local",
+  #                   "database.port": "3301",
+  #                   "database.user": "room_user",
+  #                   "database.password": "StgR00m*StgR00m",
+  #                   "database.server.id": "1",
+  #                   "database.server.name": "dbserver1",
+  #                   "database.include.list": "room_fcs",
+  #                   "database.history.kafka.bootstrap.servers": "stg-ageapdsk201.stg.hnd2.bdd.local:9092, stg-ageapdsk202.stg.hnd2.bdd.local:9092, stg-ageapdsk203.stg.hnd2.bdd.local:9092",
+  #                   "database.history.kafka.topic": "stg-room-rwasp-spring",
+  #                   "key.converter.schema.registry.url": "http://schema-registry:8081",
+  #                   "value.converter.schema.registry.url": "http://schema-registry:8081",
+  #                   "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+  #                   "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+  #                   "key.converter.schemas.enable": "false",
+  #                   "value.converter.schemas.enable": "true",
+  #                   "include.schema.changes": "true"
+  #               }
+  #           }'
+  #         - "connect:8083/connectors"  
+  #      environment:
+  #         - KAFKA_OPTS=-Djava.security.auth.login.config=/kafka_client_jaas.conf \
+  #                   -Djava.security.krb5.conf=/krb.conf \
+  #      depends_on:
+  #         - connect
+  #      links:
+  #         - connect  
+  #  #JDBC sink connector for taking data from kafka broker
+  #  # to destination DB       
+  #  jdbc-sink-connector:
+      # build:
+      #   context: .
+      #   dockerfile: Dockerfile
+      # restart: always
+      # command:
+      #     - curl
+      #     - -i
+      #     - -X
+      #     - POST
+      #     - -H
+      #     - "Accept:application/json"
+      #     - -H
+      #     - "Content-Type:application/json"
+      #     - -d
+      #     - '{
+      #         "name": "jdbc-sink-connector",
+      #         "config":
+      #         {
+      #           "connector.class": "io.confluent.connect.jdbc.JdbcSinkConnector",
+      #           "tasks.max": "1",
+      #           "topics": "mysql.source_db.test_table",
+      #           "connection.url": "jdbc:mysql://mysql:3307/dest_db?user=root&password=pass@123",
+      #           "connection.user":"root",
+      #           "connection.password":"pass@123",
+      #           "auto.create": "true",
+      #           "key.converter.schema.registry.url": "http://schema-registry:8081",
+      #           "value.converter.schema.registry.url": "http://schema-registry:8081",
+      #           "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+      #           "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+      #           "key.converter.schemas.enable":"false",
+      #           "value.converter.schemas.enable":"true",
+      #           "insert.mode":"upsert",
+      #           "pk.fields":"id",
+      #           "pk.mode":"record_value" ,
+      #           "table.name.format":"dest_db.test_table",
+      #           "transforms": "unwrap",
+      #           "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
+      #           "transforms.unwrap.drop.tombstones": "false"         
+      #         }
+      #       }'
+      #     - "connect:8083/connectors"    
+      # environment:
+      #   - KAFKA_OPTS=-Djava.security.auth.login.config=/kafka_client_jaas.conf \
+      #             -Djava.security.krb5.conf=/krb.conf \
+      # depends_on:
+      #     - connect       
+#volumes:
+   #db: {}
+ 
+ 
+ 
+ 
+ 
+

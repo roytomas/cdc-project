@@ -1,0 +1,112 @@
+version: "3.3"
+services:
+   zookeeper:
+       image: confluentinc/cp-zookeeper:5.0.0
+       environment:
+         ZOOKEEPER_CLIENT_PORT: "2182"
+         ZOOKEEPER_TICK_TIME: "2000"         
+   kafka:
+     hostname: kafka
+     image: confluentinc/cp-enterprise-kafka:5.0.0
+     depends_on:
+       - zookeeper
+     environment:
+       KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2182"
+       KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://:9093"
+       KAFKA_METRIC_REPORTERS: io.confluent.metrics.reporter.ConfluentMetricsReporter
+       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+       CONFLUENT_METRICS_REPORTER_BOOTSTRAP_SERVERS: localhost:9093
+       CONFLUENT_METRICS_REPORTER_ZOOKEEPER_CONNECT: zookeeper:2182
+       CONFLUENT_METRICS_REPORTER_TOPIC_REPLICAS: 1
+     ports:
+       - "9093:9092"
+   mysql:
+       image: mysql:5.7
+       hostname: cdc-mysql
+       healthcheck:
+          test: "exit 0"
+       volumes:
+          - db:/var/lib/mysql
+          #- ./db:/var/lib/mysql
+       restart: always
+       environment:
+           MYSQL_DATABASE: 'source_db'
+           # So you don't have to use root, but you can if you like
+           MYSQL_USER: 'test'
+           # You can use whatever password you like
+           MYSQL_PASSWORD: 'pass'
+           # Password for root access
+           MYSQL_ROOT_PASSWORD: 'pass@123'
+       command: >-
+           --datadir=/var/lib/mysql
+           --user=mysql
+           --server-id=1
+           --log-bin=/var/lib/mysql/mysql-bin.log
+       ports:
+       # <Port exposed> : < MySQL Port running inside container>
+          - '3307:3306'
+       expose:
+       # Opens port 3306 on the container
+          - '3307' 
+   #<Create debezium kafka connector to stream data from Source DB into kafka cluster> 
+   debezium-connector:
+        image: debezium/connect:latest
+        hostname: debezium-connector
+        ports:
+          - '8083:8083'
+        environment:
+          - GROUP_ID=1
+          - BOOTSTRAP_SERVERS=kafka:9093
+          - CONFIG_STORAGE_TOPIC=my_connect_configs
+          - OFFSET_STORAGE_TOPIC=my_connect_offsets
+          - STATUS_STORAGE_TOPIC=my_connect_statuses
+          - CONNECT_REQUEST_TIMEOUT_MS=60000
+         
+        depends_on:
+          - mysql
+          - zookeeper
+          - kafka 
+        command:
+          ["/wait-for-it.sh","-t","5","localhost:8083","--","/init-post.sh"]
+         #SET JAVA_OPTS for kerbersos auth
+          #- KAFKA_OPTS="-Djava.security.auth.login.config=/auth/kafka_client_jaas.conf  -Djava.security.krb5.conf=/auth/krb.conf" 
+        #volumes:
+         #COPY auth folder into docker container
+          #- ./auth:/auth 
+        expose:
+          - '8083'
+         
+   #CALL endpoint to create mysql connector with debezium kafka connect for starting snapshot from source DB
+   #Enable binlog is a must
+  #  mysql-connector:
+  #       # container_name: mysql-container
+  #       build:
+  #           context: .
+  #           dockerfile: Dockerfile
+  #       command: ["/wait-for-it.sh","-t","5","localhost:8085","--","/init-post.sh"]
+    #image: mysql-connector
+    # restart: always
+    # command: >- 
+    #   curl -i -X POST -H "Accept:application/json" \
+    #   -H "Content-Type:application/json" localhost:8083/connectors/ \
+    #   -d '{ 
+    #         "name": "mysql-connector",
+    #         "config": 
+    #         {
+    #           "connector.class": "io.debezium.connector.mysql.MySqlConnector", 
+    #           "tasks.max": "1",
+    #           "database.hostname": "mysql",
+    #           "database.port": "3306", 
+    #           "database.user": "root",
+    #           "database.password": "pass@123", 
+    #           "database.server.id": "1", 
+    #           "database.server.name": "dbserver1",
+    #           "database.include.list": "source_db", 
+    #           "database.history.kafka.bootstrap.servers": "kafka:9093", 
+    #           "database.history.kafka.topic": "schema-changes.source_db" 
+    #         }
+    #       }'          
+#volumes:
+   #db: {}
+
+    
